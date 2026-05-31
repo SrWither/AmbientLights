@@ -10,22 +10,22 @@ import net.minecraft.client.gui.components.ObjectSelectionList
 import net.minecraft.client.gui.screens.Screen
 import net.minecraft.network.chat.Component
 
-private const val WHITE: Int = 0xFFFFFFFF.toInt()
-private const val GRAY: Int = 0xFF888888.toInt()
-private const val SILVER: Int = 0xFFAAAAAA.toInt()
-private const val GOLD: Int = 0xFFFFD700.toInt()
-private const val CYAN: Int = 0xFF00CFFF.toInt()
-private const val LAVENDER: Int = 0xFFBB88FF.toInt()
+private val WHITE    = 0xFFFFFFFF.toInt()
+private val GRAY     = 0xFF888888.toInt()
+private val SILVER   = 0xFFAAAAAA.toInt()
+private val GOLD     = 0xFFFFD700.toInt()
+private val CYAN     = 0xFF00CFFF.toInt()
+private val LAVENDER = 0xFFBB88FF.toInt()
 
 class LightConfigScreen(private val parent: Screen?) : Screen(Component.literal("AmbientLights")) {
 
     private lateinit var lightList: LightListWidget
-    private var editButton: Button? = null
+    private var editButton: Button?       = null
     private var toggleRoleButton: Button? = null
-    private var removeButton: Button? = null
+    private var removeButton: Button?     = null
 
     override fun init() {
-        lightList = LightListWidget(minecraft, width, height - 78, 32)
+        lightList = LightListWidget(minecraft!!, width, height - 78, 32)
         addRenderableWidget(lightList)
         lightList.refresh(AmbientController.listLights())
 
@@ -56,15 +56,18 @@ class LightConfigScreen(private val parent: Screen?) : Screen(Component.literal(
         super.extractRenderState(graphics, mouseX, mouseY, partialTick)
 
         graphics.centeredText(font, title, width / 2, 10, WHITE)
-        graphics.text(font, "Alias", width / 2 - 172, 22, GRAY)
-        graphics.text(font, "IP", width / 2 - 52, 22, GRAY)
-        graphics.text(font, "Type", width / 2 + 68, 22, GRAY)
-        graphics.text(font, "Role", width / 2 + 110, 22, GRAY)
+
+        val cx   = lightList.lastContentX
+        val rowW = lightList.rowWidth()
+        graphics.text(font, "Alias", cx + 10,                               22, GRAY)
+        graphics.text(font, "IP",    cx + rowW / 3,                         22, GRAY)
+        graphics.text(font, "Type",  cx + rowW * 2 / 3,                     22, GRAY)
+        graphics.text(font, "Role",  cx + rowW - 10 - font.width("Role"),   22, GRAY)
 
         val sel = lightList.selected
-        editButton?.active = sel != null
+        editButton?.active       = sel != null
         toggleRoleButton?.active = sel != null
-        removeButton?.active = sel != null
+        removeButton?.active     = sel != null
     }
 
     fun refresh() = lightList.refresh(AmbientController.listLights())
@@ -90,8 +93,17 @@ class LightConfigScreen(private val parent: Screen?) : Screen(Component.literal(
 
     // ── Scrollable list ───────────────────────────────────────────────────────
 
-    inner class LightListWidget(mc: Minecraft, width: Int, height: Int, y: Int) :
-        ObjectSelectionList<LightListWidget.LightEntry>(mc, width, height, y, 24) {
+    inner class LightListWidget(mc: Minecraft, width: Int, height: Int, y: Int)
+        : ObjectSelectionList<LightListWidget.LightEntry>(mc, width, height, y, 24) {
+
+        override fun getRowWidth(): Int = this@LightConfigScreen.width - 12
+
+        // Captured from Entry.getContentX() on first render; used by the parent screen for headers
+        var lastContentX: Int = 0
+            private set
+
+        // Same formula as getRowWidth() — exposed for header calculation in extractRenderState
+        fun rowWidth(): Int = this@LightConfigScreen.width - 12
 
         inner class LightEntry(val info: LightInfo) : Entry<LightEntry>() {
 
@@ -102,14 +114,19 @@ class LightConfigScreen(private val parent: Screen?) : Screen(Component.literal(
                 mouseX: Int, mouseY: Int,
                 hovered: Boolean, tickDelta: Float
             ) {
-                val mc = Minecraft.getInstance()
-                val x = contentX
-                val y = contentYMiddle - mc.font.lineHeight / 2
-                graphics.text(mc.font, info.alias, x + 10, y, WHITE)
-                graphics.text(mc.font, info.ip, x + 115, y, SILVER)
-                graphics.text(mc.font, info.type, x + 240, y, LAVENDER)
+                val mc   = Minecraft.getInstance()
+                val cx   = getContentX()
+                this@LightListWidget.lastContentX = cx
+                val rowW = this@LightListWidget.rowWidth()
+                val y    = getContentYMiddle() - mc.font.lineHeight / 2
+
+                val roleText  = info.role.name.lowercase()
                 val roleColor = if (info.role == LightRole.PRIMARY) GOLD else CYAN
-                graphics.text(mc.font, info.role.name.lowercase(), x + 280, y, roleColor)
+
+                graphics.text(mc.font, info.alias,   cx + 10,                                    y, WHITE)
+                graphics.text(mc.font, info.ip,      cx + rowW / 3,                              y, SILVER)
+                graphics.text(mc.font, info.type,    cx + rowW * 2 / 3,                          y, LAVENDER)
+                graphics.text(mc.font, roleText,     cx + rowW - 10 - mc.font.width(roleText),   y, roleColor)
             }
         }
 

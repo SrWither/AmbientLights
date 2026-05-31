@@ -22,6 +22,10 @@ class AddEditLightScreen(
     private var currentRole = editing?.role ?: LightRole.PRIMARY
     private var currentType = editing?.type ?: BulbClientFactory.knownTypes.first()
 
+    // Persisted across init() calls (setScreen re-calls init, so we can't use widget state)
+    private var pendingIp:    String? = null
+    private var pendingAlias: String? = null
+
     private var aliasBox:   EditBox? = null
     private var ipBox:      EditBox? = null
     private var typeButton: Button?  = null
@@ -37,17 +41,28 @@ class AddEditLightScreen(
                 EditBox(font, cx - 100, base, 200, 20, Component.empty()).also {
                     it.setHint(Component.literal("alias  (e.g. desk)"))
                     it.setMaxLength(32)
+                    it.setValue(pendingAlias ?: "")
                 }
             )
         }
 
+        // IP field narrower in add mode to leave room for the Detect button
+        val ipWidth = if (isAdd) 155 else 200
         ipBox = addRenderableWidget(
-            EditBox(font, cx - 100, base + if (isAdd) 30 else 0, 200, 20, Component.empty()).also {
+            EditBox(font, cx - 100, base + if (isAdd) 30 else 0, ipWidth, 20, Component.empty()).also {
                 it.setHint(Component.literal("IP  (e.g. 192.168.1.50)"))
                 it.setMaxLength(64)
-                it.setValue(editing?.ip ?: "")
+                it.setValue(pendingIp ?: editing?.ip ?: "")
             }
         )
+
+        if (isAdd) {
+            addRenderableWidget(
+                Button.builder(Component.literal("Detect")) {
+                    minecraft.setScreen(BulbDiscoveryScreen(this, currentType))
+                }.bounds(cx + 58, base + 30, 42, 20).build()
+            )
+        }
 
         val typeY = base + if (isAdd) 60 else 30
         typeButton = addRenderableWidget(
@@ -100,6 +115,12 @@ class AddEditLightScreen(
         saveButton?.active = canSave()
     }
 
+    /** Called by [BulbDiscoveryScreen]: stores values so they survive the upcoming init() call. */
+    fun fillFromDiscovery(ip: String, name: String) {
+        pendingIp    = ip
+        pendingAlias = name.takeIf { it != ip }   // don't fill alias if name is just the IP fallback
+    }
+
     private fun typeLabel() = Component.literal("Type: §d$currentType")
 
     private fun roleLabel() = Component.literal(
@@ -125,8 +146,8 @@ class AddEditLightScreen(
         }
 
         parent.refresh()
-        minecraft?.setScreen(parent)
+        minecraft.setScreen(parent)
     }
 
-    override fun onClose() { minecraft?.setScreen(parent) }
+    override fun onClose() { minecraft.setScreen(parent) }
 }

@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory
 
 object AmbientLightsClient : ClientModInitializer {
 
-    val logger = LoggerFactory.getLogger("ambientlights-client")
+    val logger = LoggerFactory.getLogger("ambientlights-client")!!
 
     override fun onInitializeClient() {
         logger.info("Initializing AmbientLights client")
