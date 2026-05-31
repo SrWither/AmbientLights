@@ -10,12 +10,12 @@ import net.minecraft.client.gui.components.ObjectSelectionList
 import net.minecraft.client.gui.screens.Screen
 import net.minecraft.network.chat.Component
 
-private val WHITE    = 0xFFFFFFFF.toInt()
-private val GRAY     = 0xFF888888.toInt()
-private val SILVER   = 0xFFAAAAAA.toInt()
-private val GOLD     = 0xFFFFD700.toInt()
-private val CYAN     = 0xFF00CFFF.toInt()
-private val LAVENDER = 0xFFBB88FF.toInt()
+private const val WHITE    = 0xFFFFFFFF.toInt()
+private const val GRAY     = 0xFF888888.toInt()
+private const val SILVER   = 0xFFAAAAAA.toInt()
+private const val GOLD     = 0xFFFFD700.toInt()
+private const val CYAN     = 0xFF00CFFF.toInt()
+private const val LAVENDER = 0xFFBB88FF.toInt()
 
 class LightConfigScreen(private val parent: Screen?) : Screen(Component.literal("AmbientLights")) {
 
@@ -25,7 +25,7 @@ class LightConfigScreen(private val parent: Screen?) : Screen(Component.literal(
     private var removeButton: Button?     = null
 
     override fun init() {
-        lightList = LightListWidget(minecraft!!, width, height - 78, 32)
+        lightList = LightListWidget(minecraft, width, height - 78, 32)
         addRenderableWidget(lightList)
         lightList.refresh(AmbientController.listLights())
 
@@ -115,10 +115,10 @@ class LightConfigScreen(private val parent: Screen?) : Screen(Component.literal(
                 hovered: Boolean, tickDelta: Float
             ) {
                 val mc   = Minecraft.getInstance()
-                val cx   = getContentX()
+                val cx   = contentX
                 this@LightListWidget.lastContentX = cx
                 val rowW = this@LightListWidget.rowWidth()
-                val y    = getContentYMiddle() - mc.font.lineHeight / 2
+                val y    = contentYMiddle - mc.font.lineHeight / 2
 
                 val roleText  = info.role.name.lowercase()
                 val roleColor = if (info.role == LightRole.PRIMARY) GOLD else CYAN
