@@ -3,7 +3,9 @@ package me.fadel.ambientlights.client.lighting
 import me.fadel.ambientlights.client.color.RGB
 import me.fadel.ambientlights.client.color.ColorInterpolator
 import net.minecraft.client.Minecraft
+import net.minecraft.core.BlockPos
 import net.minecraft.resources.ResourceKey
+import net.minecraft.tags.FluidTags
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.biome.Biome
 import net.minecraft.world.level.biome.Biomes
@@ -12,6 +14,12 @@ object EnviromentColorProvider {
 
     private const val SECONDARY_TIME_OFFSET = 600L
 
+    // --- Fluidos (máxima prioridad) ---
+    private val water1 = RGB(0,  25,  160, w = 0, c = 15, dimming = 35)
+    private val water2 = RGB(0,  15,  130, w = 0, c = 8,  dimming = 28)
+    private val lava1  = RGB(255, 90,  0,  w = 220, c = 0, dimming = 100)
+    private val lava2  = RGB(235, 70,  0,  w = 190, c = 0, dimming = 95)
+
     // --- Keyframes globales del ciclo de día ---
     private val dawn         = RGB(210, 80,  0,   w = 200, c = 0,   dimming = 65)
     private val sunsetOrange = RGB(230, 90,  0,   w = 150, c = 0,   dimming = 95)
@@ -19,13 +27,13 @@ object EnviromentColorProvider {
     private val night        = RGB(5,   10,  80,  w = 0,   c = 0,   dimming = 20)
 
     // --- Overworld: color de día por bioma ---
-    private val dayDefault  = RGB(20,  60,  130, w = 60,  c = 230, dimming = 100) // blanco-celeste
-    private val dayDesert   = RGB(50,  80,  60,  w = 100, c = 240, dimming = 100) // blanco-amarillento
-    private val dayJungle   = RGB(10,  110, 55,  w = 20,  c = 160, dimming = 95)  // verdoso
-    private val daySnow     = RGB(100, 150, 220, w = 10,  c = 250, dimming = 100) // azul-blanco frío
-    private val daySwamp    = RGB(20,  80,  40,  w = 10,  c = 100, dimming = 75)  // verde muted
-    private val dayOcean    = RGB(10,  60,  160, w = 10,  c = 200, dimming = 100) // azul-blanco
-    private val daySavanna  = RGB(50,  80,  50,  w = 80,  c = 220, dimming = 100) // cálido-blanco
+    private val dayDefault  = RGB(20,  60,  130, w = 100, c = 250, dimming = 100) // blanco-celeste
+    private val dayDesert   = RGB(90,  100, 5,   w = 220, c = 180, dimming = 100) // amarillo-cálido brillante
+    private val dayJungle   = RGB(10,  150, 40,  w = 40,  c = 220, dimming = 100) // verde brillante
+    private val daySnow     = RGB(100, 150, 220, w = 20,  c = 255, dimming = 100) // azul-blanco frío
+    private val daySwamp    = RGB(20,  80,  40,  w = 25,  c = 130, dimming = 85)  // verde muted
+    private val dayOcean    = RGB(10,  60,  160, w = 30,  c = 230, dimming = 100) // azul-blanco
+    private val daySavanna  = RGB(120, 85,  5,   w = 200, c = 150, dimming = 100) // naranja-cálido brillante
 
     // --- Nether: color por bioma (primario / secundario) ---
     private val netherWastes1    = RGB(220, 20,  0,   w = 20, c = 0,  dimming = 80)
@@ -92,7 +100,19 @@ object EnviromentColorProvider {
         }
     }
 
+    private fun eyeFluidColor(client: Minecraft, main: RGB, secondary: Boolean): RGB? {
+        val player = client.player ?: return null
+        val level  = client.level  ?: return null
+        val fluid  = level.getFluidState(BlockPos.containing(player.getEyePosition()))
+        return when {
+            fluid.`is`(FluidTags.LAVA)  -> if (secondary) lava2  else lava1
+            fluid.`is`(FluidTags.WATER) -> if (secondary) water2 else water1
+            else -> null
+        }
+    }
+
     fun primaryColor(client: Minecraft): RGB {
+        eyeFluidColor(client, lava1, secondary = false)?.let { return it }
         val level    = client.level ?: return RGB(0, 0, 0, w = 150, c = 150, dimming = 100)
         val biomeKey = getBiomeKey(client)
 
@@ -116,6 +136,7 @@ object EnviromentColorProvider {
     }
 
     fun secondaryColor(client: Minecraft): RGB {
+        eyeFluidColor(client, lava2, secondary = true)?.let { return it }
         val level    = client.level ?: return RGB(0, 0, 0, w = 200, c = 80, dimming = 95)
         val biomeKey = getBiomeKey(client)
 
