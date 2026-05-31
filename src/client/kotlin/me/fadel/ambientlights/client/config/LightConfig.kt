@@ -7,20 +7,22 @@ import java.io.File
 
 object LightConfig {
 
+    data class LightEntry(val alias: String, val ip: String, val role: String)
+
     private val gson = Gson()
     private val file: File = FabricLoader.getInstance().configDir.resolve("ambientlights.json").toFile()
 
-    fun load(): List<String> {
+    fun load(): List<LightEntry> {
         if (!file.exists()) return emptyList()
         return try {
-            val type = object : TypeToken<List<String>>() {}.type
-            gson.fromJson<List<String>>(file.readText(), type) ?: emptyList()
+            val type = object : TypeToken<List<LightEntry>>() {}.type
+            gson.fromJson<List<LightEntry>>(file.readText(), type) ?: emptyList()
         } catch (e: Exception) {
             emptyList()
         }
     }
 
-    fun save(ips: List<String>) {
-        file.writeText(gson.toJson(ips))
+    fun save(entries: List<LightEntry>) {
+        file.writeText(gson.toJson(entries))
     }
 }

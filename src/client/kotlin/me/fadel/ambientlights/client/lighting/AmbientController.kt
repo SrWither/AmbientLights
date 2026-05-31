@@ -13,10 +13,19 @@ import net.minecraft.world.level.biome.Biome
 
 object AmbientController {
 
+    enum class LightRole { PRIMARY, SECONDARY }
+
+    data class LightInfo(val alias: String, val ip: String, val role: LightRole)
+
+    private data class ManagedLight(
+        val alias: String,
+        val wiz: WizClient,
+        val role: LightRole,
+        var lastSent: RGB? = null
+    )
+
     private const val UPDATE_INTERVAL = 5000L
     private const val BIOME_COOLDOWN  = 2000L
-
-    private data class ManagedLight(val wiz: WizClient, var lastSent: RGB? = null)
 
     private val lights = mutableListOf<ManagedLight>()
 
@@ -35,39 +44,67 @@ object AmbientController {
 
     fun loadFromConfig() {
         lights.clear()
-        LightConfig.load().forEach { ip -> lights.add(ManagedLight(WizClient(ip))) }
+        LightConfig.load().forEach { entry ->
+            val role = if (entry.role.equals("secondary", ignoreCase = true)) LightRole.SECONDARY else LightRole.PRIMARY
+            lights.add(ManagedLight(entry.alias, WizClient(entry.ip), role))
+        }
         AmbientLightsClient.logger.info("Loaded ${lights.size} light(s) from config")
     }
 
-    fun addLight(ip: String): Boolean {
-        if (lights.any { it.wiz.ip == ip }) return false
-        lights.add(ManagedLight(WizClient(ip)))
-        LightConfig.save(lights.map { it.wiz.ip })
-        lastUpdate = 0L  // trigger inmediato para que el nuevo foco reciba color
-        AmbientLightsClient.logger.info("Added light: $ip (total: ${lights.size})")
+    private fun saveConfig() {
+        LightConfig.save(lights.map { LightConfig.LightEntry(it.alias, it.wiz.ip, it.role.name.lowercase()) })
+    }
+
+    fun addLight(alias: String, ip: String, role: LightRole): Boolean {
+        if (lights.any { it.alias == alias }) return false
+        lights.add(ManagedLight(alias, WizClient(ip), role))
+        saveConfig()
+        lastUpdate = 0L
+        AmbientLightsClient.logger.info("Added light '$alias' @ $ip (${role.name.lowercase()})")
         return true
     }
 
-    fun removeLight(ip: String): Boolean {
-        val removed = lights.removeIf { it.wiz.ip == ip }
+    fun removeLight(alias: String): Boolean {
+        val removed = lights.removeIf { it.alias == alias }
         if (removed) {
-            LightConfig.save(lights.map { it.wiz.ip })
-            AmbientLightsClient.logger.info("Removed light: $ip (remaining: ${lights.size})")
+            saveConfig()
+            AmbientLightsClient.logger.info("Removed light '$alias'")
         }
         return removed
     }
 
+    fun editIp(alias: String, newIp: String): Boolean {
+        val index = lights.indexOfFirst { it.alias == alias }
+        if (index == -1) return false
+        val old = lights[index]
+        lights[index] = ManagedLight(old.alias, WizClient(newIp), old.role)
+        saveConfig()
+        lastUpdate = 0L
+        AmbientLightsClient.logger.info("Updated '$alias' IP: ${old.wiz.ip} → $newIp")
+        return true
+    }
+
+    fun editRole(alias: String, role: LightRole): Boolean {
+        val index = lights.indexOfFirst { it.alias == alias }
+        if (index == -1) return false
+        val old = lights[index]
+        lights[index] = ManagedLight(old.alias, old.wiz, role)
+        saveConfig()
+        lastUpdate = 0L
+        AmbientLightsClient.logger.info("Updated '$alias' role → ${role.name.lowercase()}")
+        return true
+    }
+
     fun clearLights() {
         lights.clear()
-        LightConfig.save(emptyList())
+        saveConfig()
         AmbientLightsClient.logger.info("Cleared all lights")
     }
 
-    fun listLights(): List<String> = lights.map { it.wiz.ip }
+    fun listLights(): List<LightInfo>  = lights.map { LightInfo(it.alias, it.wiz.ip, it.role) }
+    fun listAliases(): List<String>    = lights.map { it.alias }
 
-    private fun resetAllLastSent() {
-        lights.forEach { it.lastSent = null }
-    }
+    private fun resetAllLastSent() = lights.forEach { it.lastSent = null }
 
     // --- Tick principal ---
 
@@ -87,8 +124,8 @@ object AmbientController {
                 resetAllLastSent()
                 val menuPrimary   = RGB(0, 0, 0, w = 150, c = 150, dimming = 100)
                 val menuSecondary = RGB(0, 0, 0, w = 200, c = 80,  dimming = 95)
-                lights.forEachIndexed { i, light ->
-                    light.wiz.setColor(if (i % 2 == 0) menuPrimary else menuSecondary)
+                lights.forEach { light ->
+                    light.wiz.setColor(if (light.role == LightRole.PRIMARY) menuPrimary else menuSecondary)
                 }
             }
             return
@@ -102,14 +139,12 @@ object AmbientController {
 
         val now = System.currentTimeMillis()
 
-        // Leer todo el estado antes de procesar cambios
         val currentDimension = level.dimension()
         val currentBiome     = client.player?.let { p -> level.getBiome(p.blockPosition()).unwrapKey().orElse(null) }
         val eyeFluid         = client.player?.let { p -> level.getFluidState(BlockPos.containing(p.getEyePosition())) }
         val inWater          = eyeFluid?.`is`(FluidTags.WATER) ?: false
         val inLava           = eyeFluid?.`is`(FluidTags.LAVA)  ?: false
 
-        // Cambio de dimensión
         if (currentDimension != lastDimension) {
             AmbientLightsClient.logger.info("Dimension changed to ${currentDimension}, updating instantly")
             lastDimension      = currentDimension
@@ -122,7 +157,6 @@ object AmbientController {
             lastUpdate         = 0L
         }
 
-        // Cambio de fluido: instantáneo
         if (inWater != lastInWater || inLava != lastInLava) {
             AmbientLightsClient.logger.info("Fluid state changed (water=$inWater lava=$inLava), updating instantly")
             lastInWater = inWater
@@ -131,7 +165,6 @@ object AmbientController {
             lastUpdate  = 0L
         }
 
-        // Cambio de bioma: instantáneo, luego cooldown
         if (currentBiome != lastBiome) {
             lastBiome = currentBiome
             if (now - lastBiomeUpdate >= BIOME_COOLDOWN) {
@@ -158,8 +191,8 @@ object AmbientController {
         val primary   = EnviromentColorProvider.primaryColor(client)
         val secondary = EnviromentColorProvider.secondaryColor(client)
 
-        lights.forEachIndexed { i, light ->
-            val color = if (i % 2 == 0) primary else secondary
+        lights.forEach { light ->
+            val color = if (light.role == LightRole.PRIMARY) primary else secondary
             if (color != light.lastSent) {
                 light.wiz.setColor(color)
                 light.lastSent = color
