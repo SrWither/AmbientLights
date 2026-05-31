@@ -76,7 +76,11 @@ class AddEditLightScreen(
         val roleY = base + if (isAdd) 90 else 60
         roleButton = addRenderableWidget(
             Button.builder(roleLabel()) {
-                currentRole = if (currentRole == LightRole.PRIMARY) LightRole.SECONDARY else LightRole.PRIMARY
+                currentRole = when (currentRole) {
+                    LightRole.PRIMARY   -> LightRole.SECONDARY
+                    LightRole.SECONDARY -> LightRole.TERTIARY
+                    LightRole.TERTIARY  -> LightRole.PRIMARY
+                }
                 roleButton?.message = roleLabel()
                 saveButton?.active  = canSave()
             }.bounds(cx - 100, roleY, 200, 20).build()
@@ -124,20 +128,24 @@ class AddEditLightScreen(
     private fun typeLabel() = Component.literal("Type: §d$currentType")
 
     private fun roleLabel() = Component.literal(
-        "Role: ${if (currentRole == LightRole.PRIMARY) "§eprimary" else "§bsecondary"}"
+        "Role: ${when (currentRole) {
+            LightRole.PRIMARY   -> "§eprimary"
+            LightRole.SECONDARY -> "§bsecondary"
+            LightRole.TERTIARY  -> "§ctertiary"
+        }}"
     )
 
     private fun canSave(): Boolean {
-        val ipOk    = !ipBox?.getValue().isNullOrBlank()
-        val aliasOk = !isAdd || !aliasBox?.getValue().isNullOrBlank()
+        val ipOk    = !ipBox?.value.isNullOrBlank()
+        val aliasOk = !isAdd || !aliasBox?.value.isNullOrBlank()
         return ipOk && aliasOk
     }
 
     private fun save() {
-        val ip = ipBox?.getValue()?.trim().takeIf { !it.isNullOrEmpty() } ?: return
+        val ip = ipBox?.value?.trim().takeIf { !it.isNullOrEmpty() } ?: return
 
         if (isAdd) {
-            val alias = aliasBox?.getValue()?.trim().takeIf { !it.isNullOrEmpty() } ?: return
+            val alias = aliasBox?.value?.trim().takeIf { !it.isNullOrEmpty() } ?: return
             AmbientController.addLight(alias, ip, currentRole, currentType)
         } else {
             AmbientController.editIp(editing!!.alias, ip)

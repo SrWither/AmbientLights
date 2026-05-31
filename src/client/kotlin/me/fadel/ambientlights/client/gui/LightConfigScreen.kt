@@ -16,6 +16,7 @@ private const val SILVER   = 0xFFAAAAAA.toInt()
 private const val GOLD     = 0xFFFFD700.toInt()
 private const val CYAN     = 0xFF00CFFF.toInt()
 private const val LAVENDER = 0xFFBB88FF.toInt()
+private const val RED      = 0xFFFF5555.toInt()
 
 class LightConfigScreen(private val parent: Screen?) : Screen(Component.literal("AmbientLights")) {
 
@@ -78,7 +79,11 @@ class LightConfigScreen(private val parent: Screen?) : Screen(Component.literal(
 
     private fun toggleRole() {
         val info = lightList.selected?.info ?: return
-        val newRole = if (info.role == LightRole.PRIMARY) LightRole.SECONDARY else LightRole.PRIMARY
+        val newRole = when (info.role) {
+            LightRole.PRIMARY   -> LightRole.SECONDARY
+            LightRole.SECONDARY -> LightRole.TERTIARY
+            LightRole.TERTIARY  -> LightRole.PRIMARY
+        }
         AmbientController.editRole(info.alias, newRole)
         refresh()
     }
@@ -121,7 +126,11 @@ class LightConfigScreen(private val parent: Screen?) : Screen(Component.literal(
                 val y    = contentYMiddle - mc.font.lineHeight / 2
 
                 val roleText  = info.role.name.lowercase()
-                val roleColor = if (info.role == LightRole.PRIMARY) GOLD else CYAN
+                val roleColor = when (info.role) {
+                    LightRole.PRIMARY   -> GOLD
+                    LightRole.SECONDARY -> CYAN
+                    LightRole.TERTIARY  -> RED
+                }
 
                 graphics.text(mc.font, info.alias,   cx + 10,                                    y, WHITE)
                 graphics.text(mc.font, info.ip,      cx + rowW / 3,                              y, SILVER)

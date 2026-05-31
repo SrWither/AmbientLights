@@ -14,7 +14,7 @@ import net.minecraft.world.level.biome.Biome
 
 object AmbientController {
 
-    enum class LightRole { PRIMARY, SECONDARY }
+    enum class LightRole { PRIMARY, SECONDARY, TERTIARY }
 
     data class LightInfo(val alias: String, val ip: String, val role: LightRole, val type: String)
 
@@ -47,7 +47,11 @@ object AmbientController {
     fun loadFromConfig() {
         lights.clear()
         LightConfig.load().forEach { entry ->
-            val role   = if (entry.role.equals("secondary", ignoreCase = true)) LightRole.SECONDARY else LightRole.PRIMARY
+            val role   = when {
+                entry.role.equals("secondary", ignoreCase = true) -> LightRole.SECONDARY
+                entry.role.equals("tertiary",  ignoreCase = true) -> LightRole.TERTIARY
+                else -> LightRole.PRIMARY
+            }
             val type   = entry.type ?: "wiz"
             lights.add(ManagedLight(entry.alias, BulbClientFactory.create(type, entry.ip), role, type))
         }
@@ -137,6 +141,7 @@ object AmbientController {
                 val menuPrimary   = RGB(0, 0, 0, w = 150, c = 150, dimming = 100)
                 val menuSecondary = RGB(0, 0, 0, w = 200, c = 80,  dimming = 95)
                 lights.forEach { light ->
+                    if (light.role == LightRole.TERTIARY) return@forEach
                     light.client.setColor(if (light.role == LightRole.PRIMARY) menuPrimary else menuSecondary)
                 }
             }
@@ -204,6 +209,7 @@ object AmbientController {
         val secondary = EnvironmentColorProvider.secondaryColor(client)
 
         lights.forEach { light ->
+            if (light.role == LightRole.TERTIARY) return@forEach
             val color = if (light.role == LightRole.PRIMARY) primary else secondary
             if (color != light.lastSent) {
                 light.client.setColor(color)
