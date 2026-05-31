@@ -3,59 +3,138 @@ package me.fadel.ambientlights.client.lighting
 import me.fadel.ambientlights.client.color.RGB
 import me.fadel.ambientlights.client.color.ColorInterpolator
 import net.minecraft.client.Minecraft
+import net.minecraft.resources.ResourceKey
 import net.minecraft.world.level.Level
+import net.minecraft.world.level.biome.Biome
+import net.minecraft.world.level.biome.Biomes
 
 object EnviromentColorProvider {
 
     private const val SECONDARY_TIME_OFFSET = 600L
 
-    // Amanecer: naranja cálido, no muy brillante todavía
+    // --- Keyframes globales del ciclo de día ---
     private val dawn         = RGB(210, 80,  0,   w = 200, c = 0,   dimming = 65)
-    // Día: blanco brillante con toque celeste — c alto domina, azul añade el matiz
-    private val day          = RGB(20,  60,  130, w = 60,  c = 230, dimming = 100)
-    // Atardecer: ámbar/naranja intenso cuando el sol baja
     private val sunsetOrange = RGB(230, 90,  0,   w = 150, c = 0,   dimming = 95)
-    // Ocaso oscuro: misma familia cálida pero muy dim — baja el brillo ANTES de virar al azul
     private val duskDark     = RGB(80,  15,  5,   w = 5,   c = 0,   dimming = 22)
-    // Noche: azul oscuro profundo
     private val night        = RGB(5,   10,  80,  w = 0,   c = 0,   dimming = 20)
 
-    private fun overworldColor(dayTime: Long): RGB {
-        val time = (dayTime % 24000).toInt()
+    // --- Overworld: color de día por bioma ---
+    private val dayDefault  = RGB(20,  60,  130, w = 60,  c = 230, dimming = 100) // blanco-celeste
+    private val dayDesert   = RGB(50,  80,  60,  w = 100, c = 240, dimming = 100) // blanco-amarillento
+    private val dayJungle   = RGB(10,  110, 55,  w = 20,  c = 160, dimming = 95)  // verdoso
+    private val daySnow     = RGB(100, 150, 220, w = 10,  c = 250, dimming = 100) // azul-blanco frío
+    private val daySwamp    = RGB(20,  80,  40,  w = 10,  c = 100, dimming = 75)  // verde muted
+    private val dayOcean    = RGB(10,  60,  160, w = 10,  c = 200, dimming = 100) // azul-blanco
+    private val daySavanna  = RGB(50,  80,  50,  w = 80,  c = 220, dimming = 100) // cálido-blanco
 
+    // --- Nether: color por bioma (primario / secundario) ---
+    private val netherWastes1    = RGB(220, 20,  0,   w = 20, c = 0,  dimming = 80)
+    private val netherWastes2    = RGB(200, 50,  0,   w = 30, c = 0,  dimming = 70)
+    private val netherSoul1      = RGB(0,   50,  210, w = 0,  c = 30, dimming = 70) // soul fire azul
+    private val netherSoul2      = RGB(10,  30,  180, w = 0,  c = 20, dimming = 60)
+    private val netherCrimson1   = RGB(220, 10,  30,  w = 5,  c = 0,  dimming = 80)
+    private val netherCrimson2   = RGB(180, 30,  50,  w = 0,  c = 0,  dimming = 70)
+    private val netherWarped1    = RGB(0,   190, 150, w = 0,  c = 20, dimming = 65) // teal
+    private val netherWarped2    = RGB(10,  160, 120, w = 0,  c = 10, dimming = 55)
+    private val netherBasalt1    = RGB(70,  15,  5,   w = 5,  c = 0,  dimming = 50) // gris oscuro
+    private val netherBasalt2    = RGB(50,  10,  15,  w = 0,  c = 0,  dimming = 40)
+
+    // --- End: color por bioma (primario / secundario) ---
+    private val endDefault1      = RGB(90,  10,  180, w = 0, c = 0, dimming = 60)
+    private val endDefault2      = RGB(50,  20,  200, w = 0, c = 0, dimming = 50)
+    private val endHighlands1    = RGB(130, 0,   210, w = 0, c = 0, dimming = 70)
+    private val endHighlands2    = RGB(160, 10,  220, w = 0, c = 0, dimming = 60)
+    private val endMidlands1     = RGB(70,  15,  160, w = 0, c = 0, dimming = 55)
+    private val endMidlands2     = RGB(90,  10,  190, w = 0, c = 0, dimming = 50)
+    private val endBarrens1      = RGB(40,  5,   130, w = 0, c = 0, dimming = 45)
+    private val endBarrens2      = RGB(20,  10,  140, w = 0, c = 0, dimming = 40)
+    private val endSmallIslands1 = RGB(20,  20,  160, w = 0, c = 0, dimming = 50)
+    private val endSmallIslands2 = RGB(40,  40,  170, w = 0, c = 0, dimming = 45)
+
+    private fun getBiomeKey(client: Minecraft): ResourceKey<Biome>? {
+        val player = client.player ?: return null
+        val level  = client.level  ?: return null
+        return level.getBiome(player.blockPosition()).unwrapKey().orElse(null)
+    }
+
+    private fun biomeDayColor(key: ResourceKey<Biome>?): RGB = when (key) {
+        Biomes.DESERT,
+        Biomes.BADLANDS, Biomes.ERODED_BADLANDS, Biomes.WOODED_BADLANDS -> dayDesert
+
+        Biomes.JUNGLE, Biomes.BAMBOO_JUNGLE, Biomes.SPARSE_JUNGLE -> dayJungle
+
+        Biomes.SNOWY_PLAINS, Biomes.SNOWY_TAIGA, Biomes.SNOWY_SLOPES,
+        Biomes.FROZEN_RIVER, Biomes.FROZEN_OCEAN, Biomes.DEEP_FROZEN_OCEAN,
+        Biomes.ICE_SPIKES -> daySnow
+
+        Biomes.SWAMP, Biomes.MANGROVE_SWAMP -> daySwamp
+
+        Biomes.OCEAN, Biomes.DEEP_OCEAN,
+        Biomes.WARM_OCEAN, Biomes.COLD_OCEAN,
+        Biomes.LUKEWARM_OCEAN, Biomes.DEEP_LUKEWARM_OCEAN, Biomes.DEEP_COLD_OCEAN,
+        Biomes.BEACH, Biomes.STONY_SHORE -> dayOcean
+
+        Biomes.SAVANNA, Biomes.SAVANNA_PLATEAU, Biomes.WINDSWEPT_SAVANNA -> daySavanna
+
+        else -> dayDefault
+    }
+
+    private fun overworldColor(dayTime: Long, biomeDay: RGB): RGB {
+        val time = (dayTime % 24000).toInt()
         return when {
-            time < 6000  -> ColorInterpolator.lerp(dawn,         day,          time / 6000f)
-            time < 11000 -> day
-            time < 13000 -> ColorInterpolator.lerp(day,          sunsetOrange, (time - 11000) / 2000f)
-            time < 13600 -> ColorInterpolator.lerp(sunsetOrange, duskDark,    (time - 13000) / 600f)
-            time < 14000 -> ColorInterpolator.lerp(duskDark,     night,       (time - 13600) / 400f)
+            time < 6000  -> ColorInterpolator.lerp(dawn,         biomeDay,     time / 6000f)
+            time < 11000 -> biomeDay
+            time < 13000 -> ColorInterpolator.lerp(biomeDay,     sunsetOrange, (time - 11000) / 2000f)
+            time < 13600 -> ColorInterpolator.lerp(sunsetOrange, duskDark,     (time - 13000) / 600f)
+            time < 14000 -> ColorInterpolator.lerp(duskDark,     night,        (time - 13600) / 400f)
             time < 22000 -> night
             else         -> ColorInterpolator.lerp(night,        dawn,         (time - 22000) / 2000f)
         }
     }
 
     fun primaryColor(client: Minecraft): RGB {
-        val level = client.level ?: return RGB(0, 0, 0, w = 150, c = 150, dimming = 100)
+        val level    = client.level ?: return RGB(0, 0, 0, w = 150, c = 150, dimming = 100)
+        val biomeKey = getBiomeKey(client)
 
         return when (level.dimension()) {
-            Level.NETHER -> RGB(220, 20,  0,   w = 20, c = 0, dimming = 80)
-            Level.END    -> RGB(90,  10,  180, w = 0,  c = 0, dimming = 60)
-            else         -> overworldColor(level.overworldClockTime)
+            Level.NETHER -> when (biomeKey) {
+                Biomes.SOUL_SAND_VALLEY -> netherSoul1
+                Biomes.CRIMSON_FOREST   -> netherCrimson1
+                Biomes.WARPED_FOREST    -> netherWarped1
+                Biomes.BASALT_DELTAS    -> netherBasalt1
+                else                    -> netherWastes1
+            }
+            Level.END -> when (biomeKey) {
+                Biomes.END_HIGHLANDS    -> endHighlands1
+                Biomes.END_MIDLANDS     -> endMidlands1
+                Biomes.END_BARRENS      -> endBarrens1
+                Biomes.SMALL_END_ISLANDS -> endSmallIslands1
+                else                    -> endDefault1
+            }
+            else -> overworldColor(level.overworldClockTime, biomeDayColor(biomeKey))
         }
     }
 
     fun secondaryColor(client: Minecraft): RGB {
-        val level = client.level ?: return RGB(0, 0, 0, w = 200, c = 80, dimming = 95)
+        val level    = client.level ?: return RGB(0, 0, 0, w = 200, c = 80, dimming = 95)
+        val biomeKey = getBiomeKey(client)
 
         return when (level.dimension()) {
-            // Más naranja/amarillo que el primario: como una segunda antorcha a diferente temperatura
-            Level.NETHER -> RGB(200, 50, 0, w = 30, c = 0, dimming = 70)
-
-            // Más azul y oscuro: contraste frío/místico frente al morado del primario
-            Level.END    -> RGB(50, 20, 200, w = 0, c = 0, dimming = 50)
-
-            // Overworld: misma curva de día pero con offset de tiempo → ángulo de luz diferente
-            else -> overworldColor(level.overworldClockTime + SECONDARY_TIME_OFFSET)
+            Level.NETHER -> when (biomeKey) {
+                Biomes.SOUL_SAND_VALLEY -> netherSoul2
+                Biomes.CRIMSON_FOREST   -> netherCrimson2
+                Biomes.WARPED_FOREST    -> netherWarped2
+                Biomes.BASALT_DELTAS    -> netherBasalt2
+                else                    -> netherWastes2
+            }
+            Level.END -> when (biomeKey) {
+                Biomes.END_HIGHLANDS     -> endHighlands2
+                Biomes.END_MIDLANDS      -> endMidlands2
+                Biomes.END_BARRENS       -> endBarrens2
+                Biomes.SMALL_END_ISLANDS -> endSmallIslands2
+                else                     -> endDefault2
+            }
+            else -> overworldColor(level.overworldClockTime + SECONDARY_TIME_OFFSET, biomeDayColor(biomeKey))
         }
     }
 }
