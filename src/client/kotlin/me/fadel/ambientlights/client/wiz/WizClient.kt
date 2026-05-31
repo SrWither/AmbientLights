@@ -5,7 +5,7 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 
-class WizClient(private val ip: String) {
+class WizClient(val ip: String) {
 
     fun setColor(color: RGB) {
         val r = color.r.coerceIn(0, 255)
