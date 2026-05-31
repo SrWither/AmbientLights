@@ -7,7 +7,13 @@ import java.io.File
 
 object LightConfig {
 
-    data class LightEntry(val alias: String, val ip: String, val role: String)
+    // type is nullable so Gson doesn't NPE on old configs that lack the field
+    data class LightEntry(
+        val alias: String,
+        val ip: String,
+        val role: String,
+        val type: String? = null
+    )
 
     private val gson = Gson()
     private val file: File = FabricLoader.getInstance().configDir.resolve("ambientlights.json").toFile()
