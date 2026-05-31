@@ -63,7 +63,7 @@ class BulbDiscoveryScreen(
         graphics.centeredText(
             font,
             Component.literal("§7Test blinks §cred §7— works best when no lights are already red"),
-            width / 2, height - 44, 0xFF888888.toInt()
+            width / 2, height - 42, 0xFF888888.toInt()
         )
 
         val hasSel = list.selected != null
@@ -84,21 +84,29 @@ class BulbDiscoveryScreen(
         testButton?.active = false
 
         Thread(null, {
+            // Snapshot current state before flashing so we can restore it exactly
+            val snapshot = bulb.readState()
+
             try {
                 bulb.setColor(RGB(255, 0, 0, dimming = 100))
                 Thread.sleep(1200)
             } catch (_: Exception) {}
 
-            // Restore proper color on the main thread (game state access must be on render thread)
-            Minecraft.getInstance().execute {
-                val mc = Minecraft.getInstance()
-                val restore = if (mc.level != null)
-                    EnvironmentColorProvider.primaryColor(mc)
-                else
-                    RGB(0, 0, 0, w = 150, c = 150, dimming = 100)
-                Thread(null, { bulb.setColor(restore) }, "BulbRestore")
+            if (snapshot != null) {
+                // Restore exactly what the bulb had before
+                Thread(null, { bulb.setColor(snapshot) }, "BulbRestore")
                     .also { it.isDaemon = true }.start()
-                testButton?.active = true
+                Minecraft.getInstance().execute { testButton?.active = true }
+            } else {
+                // Fallback: restore from current environment (readState unsupported or timed out)
+                Minecraft.getInstance().execute {
+                    val mc      = Minecraft.getInstance()
+                    val restore = if (mc.level != null) EnvironmentColorProvider.primaryColor(mc)
+                                  else RGB(0, 0, 0, w = 150, c = 150, dimming = 100)
+                    Thread(null, { bulb.setColor(restore) }, "BulbRestore")
+                        .also { it.isDaemon = true }.start()
+                    testButton?.active = true
+                }
             }
         }, "BulbTest").also { it.isDaemon = true }.start()
     }
